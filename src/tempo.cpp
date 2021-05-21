@@ -17,8 +17,14 @@
 RTC_DS1307 rtc;
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
-const String ssid = "asgard_2g";
-const String psk = "enaLkraP";
+const struct WiFidesc
+{
+  char* ssid;
+  char* psk;
+} wifinets[] = {{"asgard", "enaLkraP"}, {"asgard_2g", "enaLkraP"}, {NULL,NULL}};
+
+// const String ssid = "asgard_2g";
+// const String psk = "enaLkraP";
 const String controllername = "weather";
 
 const String version = "Weather 0.0.0";
@@ -40,8 +46,11 @@ bool connectToWiFi()
 {
   bool connected = true;
   Serial.println("Connect To WiFi");
-  Serial.printf("Connect to %s/%s\n", ssid.c_str(), psk.c_str());
-  wifimulti.addAP(ssid.c_str(), psk.c_str());
+  for (int net = 0; wifinets[net].ssid != NULL; net++)
+  {
+    // Serial.printf("Add AP %s/%s\n", ssid.c_str(), psk.c_str());
+    wifimulti.addAP(wifinets[net].ssid, wifinets[net].psk);
+  }
   wifimulti.run();
   unsigned int now = millis();
   while (wifimulti.run() != WL_CONNECTED)
@@ -54,8 +63,8 @@ bool connectToWiFi()
     }
     delay(100);
   }
-  Serial.print("Connected ");
-  Serial.println(connected);
+  if (connected)
+    Serial.printf("Connected to %s (%s)\n", WiFi.SSID().c_str(), WiFi.BSSIDstr().c_str());
   return connected;
 }
 
