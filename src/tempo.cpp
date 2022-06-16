@@ -19,12 +19,10 @@ char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursd
 
 const struct WiFidesc
 {
-  char* ssid;
-  char* psk;
-} wifinets[] = {{"asgard", "enaLkraP"}, {"asgard_2g", "enaLkraP"}, {NULL,NULL}};
+  const char *ssid;
+  const char *psk;
+} wifinets[] = {{"asgard", "enaLkraP"}, {"asgard_2g", "enaLkraP"}, {NULL, NULL}};
 
-// const String ssid = "asgard_2g";
-// const String psk = "enaLkraP";
 const String controllername = "weather";
 
 const String version = "Weather 0.0.0";
@@ -36,8 +34,7 @@ ESP8266WiFiMulti wifimulti;
 
 PubSubClient mqttClient(wifiClient);
 
-// #define SEALEVELPRESSURE_HPA (1013.25)
-const String mqttBroker("odin.local");
+const char* mqttBroker = "azrael.local";
 const unsigned long sleepTime = 15 * 60 * 1e6; // 15 mins
 
 Adafruit_BME280 bme; // I2C
@@ -84,7 +81,7 @@ void initMQTT()
 
   String clientID = controllername + String(millis() % 1000);
 
-  mqttClient.setServer(mqttBroker.c_str(), 1883);
+  mqttClient.setServer(mqttBroker, 1883);
   mqttClient.setCallback(messageReceived);
 
   if (mqttClient.connect(clientID.c_str(), "ctlr", "fatty"))
@@ -104,10 +101,11 @@ double setPrecision(double value, const unsigned int precision)
   return (round(value * factor) / factor);
 }
 
-void sendData(bool bmeOK, bool rtcOK)
+typedef StaticJsonDocument<512> weatherdata;
+
+weatherdata &getData(bool bmeOK, bool rtcOK, weatherdata &doc)
 {
   DateTime now = rtc.now();
-  StaticJsonDocument<512> doc;
   doc["bme"] = bmeOK;
   doc["rtc"] = rtcOK;
   if (rtcOK)
@@ -120,6 +118,11 @@ void sendData(bool bmeOK, bool rtcOK)
     doc["pressure"] = setPrecision(bme.readPressure() / 100, 2);
     doc["humidity"] = setPrecision(bme.readHumidity(), 2);
   }
+  return doc;
+}
+
+void sendData(weatherdata doc)
+{
   String message;
   serializeJson(doc, message);
   mqttClient.publish("home/weather", message.c_str(), message.length());
@@ -164,15 +167,15 @@ void setup()
   // i2cscan();
 
   Serial.println(version);
+
+  StaticJsonDocument<512> doc;
+  bool bmestatus = bme.begin(0x76, &Wire);
+  bool rtcstatus = rtc.begin();
+
+  getData(bmestatus, rtcstatus, doc);
+
   if (connectToWiFi())
   {
-    bool bmestatus;
-    bool rtcstatus = true;
-    if (!rtc.begin())
-    {
-      Serial.println("Couldn't find RTC");
-      rtcstatus = false;
-    }
     if (!rtc.isrunning())
     {
       Serial.println("RTC is not running");
@@ -199,19 +202,7 @@ void setup()
 
     initMQTT();
 
-    bmestatus = bme.begin(0x76, &Wire);
-    /*
-    {
-      Serial.println("Could not find a valid BME280 sensor");
-      Serial.print("SensorID was: 0x");
-      Serial.println(bme.sensorID(), 16);
-      Serial.print("        ID of 0xFF probably means a bad address, a BMP 180 or BMP 085\n");
-      Serial.print("   ID of 0x56-0x58 represents a BMP 280,\n");
-      Serial.print("        ID of 0x60 represents a BME 280.\n");
-      Serial.print("        ID of 0x61 represents a BME 680.\n");
-    }
-    */
-    sendData(bmestatus, rtcstatus);
+    sendData(doc);
   }
   else
   {
